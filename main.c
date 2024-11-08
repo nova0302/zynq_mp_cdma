@@ -95,9 +95,9 @@
 /***************** Macros (Inline Functions) Definitions *********************/
 /************************** Variable Definitions *****************************/
 
-static XAxiCdma xAxiCdma; /* Instance of the XAxiCdma */
-
 static XScuGic xScuGic; /* Instance of the Interrupt Controller */
+
+static XAxiCdma xAxiCdma; /* Instance of the XAxiCdma */
 
 /* Source and Destination buffer for DMA transfer.
  */
@@ -126,14 +126,14 @@ int main() {
 	printf("-- Build Info --\r\nFile Name: %s\r\nDate: %s\r\nTime: %s\r\n", __FILE__, __DATE__, __TIME__);
 	xil_printf("\r\n--- Entering main() --- \r\n");
 
-	u32 bramBaseAddr[PL2PS_EVENT_MAX] = { BRAM_ADDR_EVEN, BRAM_ADDR_ODD };
+	const u32 uiBramBaseAddr[PL2PS_EVENT_MAX] = { BRAM_ADDR_EVEN, BRAM_ADDR_ODD };
 
 	//	GIC 생성 및 초기화
 	GIC_Init(&xScuGic);
 
 	//	인터럽트 설정
 	//	PL to PS DP_RAM Even Interrupt 등록 (GIC에 인터럽트 연결) - PL(FPGA)에서 데이터 읽어오기 위한 인터럽트
-	Enable_IntrruptSystem(&xScuGic, INTERRUPT_ID_PL2PS_EVEN,	isr_pl2ps_even);
+	Enable_IntrruptSystem(&xScuGic, INTERRUPT_ID_PL2PS_EVEN, isr_pl2ps_even);
 
 	//	PL to PS DP_RAM Odd Interrupt 등록  (GIC에 인터럽트 연결) - PL(FPGA)에서 데이터 읽어오기 위한 인터럽트
 	Enable_IntrruptSystem(&xScuGic, INTERRUPT_ID_PL2PS_ODD,	isr_pl2ps_odd);
@@ -151,7 +151,7 @@ int main() {
 		if (bPL2PS_READ_EVENT) {
 			bPL2PS_READ_EVENT = false;
 
-			u32 SrcAddr = bramBaseAddr[pl2ps_event];
+			u32 SrcAddr = uiBramBaseAddr[pl2ps_event];
 
 			Status = XAxiCdma_SimpleTransfer(
 						&xAxiCdma
