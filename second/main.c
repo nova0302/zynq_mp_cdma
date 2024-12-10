@@ -10,6 +10,7 @@
 #include "xreg_cortexa53.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "sleep.h"
@@ -51,7 +52,14 @@ static XScuGic IntcController; /* Instance of the Interrupt Controller */
 u8 ucWeightArr[NUM_BYTES_WEIGHT] __attribute__ ((aligned(32)));
 
 /* Source and Destination buffer for DMA transfer. */
-static u8 DesBuffer[NUM_BYTES_UL] __attribute__ ((aligned (64)));
+#ifdef SAVE2SD_DIRECTLY
+	static u8 DesBuffer[NUM_BYTES_UL] __attribute__ ((aligned (64)));
+#else
+	#ifdef USE_HEAP
+	#else
+		static u8 DesBuffer[NUM_WEIGHT_RAMS][NUM_BYTES_UL] __attribute__ ((aligned (64)));
+	#endif
+#endif
 
 /* Shared variables used to test the callbacks. */
 volatile static u32 Done = 0U; /* Dma transfer is done */
@@ -95,9 +103,15 @@ int main() {
 	int Status;
 	init_platform(); // for printf
 
-	printf("-- Build Info --\r\nFile Name: %s\r\nDate: %s\r\nTime: %s\r\n",
-	__FILE__, __DATE__, __TIME__);
-	xil_printf("\r\n--- Entering main() --- \r\n");
+#ifdef USE_HEAP
+	u8 **DesBuffer = (u8**)malloc(NUM_WEIGHT_RAMS * sizeof(u8*));
+
+	for(int i=0; i<NUM_WEIGHT_RAMS; i++){
+		DesBuffer[i] = (u8*)malloc(NUM_BYTES_UL*sizeof(u8));
+	}
+#endif
+
+
 
 	u32 sramBaseAddr[PL2PS_EVENT_MAX] = { SRAM_ADDR_UL_EVEN, SRAM_ADDR_UL_ODD };
 
@@ -129,7 +143,11 @@ int main() {
 
 			Status = XAxiCdma_SimpleTransfer(&AxiCdmaInstance,
 					(UINTPTR) SrcAddr,
+#ifdef SAVE2SD_DIRECTLY
 					(UINTPTR) &DesBuffer[0],
+#else
+					(UINTPTR) &DesBuffer[fileNameIndex][0],
+#endif
 					NUM_BYTES_UL,
 					isr_cdma,
 					(void *) &AxiCdmaInstance);
@@ -138,16 +156,23 @@ int main() {
 				// Wait for CDMA transfer to complete!!
 			}
 			Done = 0;
+
 			// Invalidate the DestBuffer before receiving the data, in case the Data Cache is enabled
+#ifdef SAVE2SD_DIRECTLY
 			Xil_DCacheInvalidateRange((UINTPTR) &DesBuffer, NUM_BYTES_UL);
-
-			writeToFile(&DesBuffer[0], NUM_BYTES_UL, fileNameIndex++);
-
+			writeToFile(&DesBuffer[0], NUM_BYTES_UL, (u8)fileNameIndex);
+#endif
+			fileNameIndex++;
 			if (Status == XST_FAILURE) cdmaErrCount++;
 
-			if ((++fileNameIndex % 16) == 0) {
+			if ((fileNameIndex % 16) == 0) {
+#ifndef SAVE2SD_DIRECTLY
+				for(int i=0; i<NUM_WEIGHT_RAMS; i++){
+					Xil_DCacheInvalidateRange((UINTPTR) &DesBuffer[i][0], NUM_BYTES_UL);
+					writeToFile(&DesBuffer[i][0], NUM_BYTES_UL, (u8)i);
+				}
+#endif
 				break;
-//				Xil_DCacheInvalidateRange((UINTPTR) &DesBuffer, NUM_BYTES_UL);
 //				systolic_1_test();
 			}
 		}
@@ -389,4 +414,10 @@ int writeToFile(u8 *pBuffer, u32 uiNumBytes, u8 fileNameIndex){
 	if (Res) return XST_FAILURE;
 
 	return XST_SUCCESS;
+}
+
+void printPrjInfo(){
+	printf("-- Build Info --\r\nFile Name: %s\r\nDate: %s\r\nTime: %s\r\n",
+	__FILE__, __DATE__, __TIME__);
+	xil_printf("\r\n--- Entering main() --- \r\n");
 }

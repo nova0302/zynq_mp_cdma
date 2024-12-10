@@ -8,7 +8,8 @@
 #ifndef SRC_MAIN_H_
 #define SRC_MAIN_H_
 
-#define TPU_TEST
+#define USE_HEAP
+//#define SAVE2SD_DIRECTLY
 
 // for download weight, ps -> pl
 #define SRAM_BASE_DL      	(0xA0000000U)
